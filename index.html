@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>BTC Trading Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Courier New', monospace;
+      background: #0a0e1a;
+      color: #e2e8f0;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 20px;
+      letter-spacing: 3px;
+      color: #58a6ff;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+    }
+
+    #spike-banner {
+      display: none;
+      background: #3d0000;
+      border: 1px solid #ff4444;
+      border-radius: 8px;
+      color: #ff4444;
+      font-size: 14px;
+      text-align: center;
+      padding: 10px;
+      margin-bottom: 16px;
+      animation: blink 0.5s step-end infinite;
+    }
+    @keyframes blink { 50% { opacity: 0.4; } }
+
+    #error-banner {
+      display: none;
+      background: #1a0a00;
+      border: 1px solid #d29922;
+      border-radius: 8px;
+      color: #d29922;
+      font-size: 13px;
+      text-align: center;
+      padding: 10px;
+      margin-bottom: 16px;
+    }
+
+    .stats-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .flip-card {
+      min-width: 140px;
+      flex: 1;
+      height: 90px;
+      perspective: 900px;
+    }
+
+    .flip-card-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transform-style: preserve-3d;
+      transition: transform 0.55s cubic-bezier(0.4, 0.2, 0.2, 1);
+    }
+
+    .flip-card:hover .flip-card-inner {
+      transform: rotateY(180deg);
+    }
+
+    .flip-card-front,
+    .flip-card-back {
+      position: absolute;
+      inset: 0;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 14px;
+      text-align: center;
+    }
+
+    .flip-card-front {
+      background: #0d1117;
+      border: 1px solid #21262d;
+    }
+
+    .flip-card-front .label {
+      font-size: 10px;
+      color: #8b949e;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .flip-card-front .value {
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .flip-card-back {
+      background: #161b22;
+      border: 1px solid #58a6ff55;
+      transform: rotateY(180deg);
+    }
+
+    .flip-card-back .def-title {
+      font-size: 10px;
+      color: #58a6ff;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      font-weight: bold;
+    }
+
+    .flip-card-back .def-text {
+      font-size: 11px;
+      color: #adbac7;
+      line-height: 1.55;
+    }
+
+    @keyframes emerge {
+      0%   { opacity: 0.25; transform: scale(0.90); }
+      55%  { opacity: 1;    transform: scale(1.07); }
+      100% { opacity: 1;    transform: scale(1);    }
+    }
+    .emerged { animation: emerge 0.38s ease-out forwards; }
+
+    .up      { color: #3fb950; }
+    .down    { color: #f85149; }
+    .neutral { color: #e2e8f0; }
+
+    #trend-badge {
+      display: inline-block;
+      padding: 4px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      margin-top: 4px;
+    }
+    .badge-up   { background: #0d2e1a; color: #3fb950; border: 1px solid #3fb950; }
+    .badge-down { background: #2e0d0d; color: #f85149; border: 1px solid #f85149; }
+    .badge-side { background: #1a1a2e; color: #8b949e; border: 1px solid #8b949e; }
+
+    .chart-wrap {
+      background: #0d1117;
+      border: 1px solid #21262d;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    /* ---- insight box ---- */
+    #insight-box {
+      background: #0d1117;
+      border: 1px solid #21262d;
+      border-left: 3px solid #58a6ff;
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-size: 13px;
+      color: #8b949e;
+      margin-bottom: 16px;
+    }
+
+    .insight-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .insight-label {
+      color: #58a6ff;
+      font-weight: bold;
+      font-size: 13px;
+      letter-spacing: 1px;
+    }
+
+    .toggle-wrap {
+      display: flex;
+    }
+
+    .toggle-btn {
+      font-family: 'Courier New', monospace;
+      font-size: 10px;
+      letter-spacing: 1px;
+      padding: 3px 10px;
+      cursor: pointer;
+      border: 1px solid #21262d;
+      background: #0d1117;
+      color: #8b949e;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+    }
+
+    .toggle-btn:first-child { border-radius: 4px 0 0 4px; }
+    .toggle-btn:last-child  { border-radius: 0 4px 4px 0; border-left: none; }
+
+    .toggle-btn.active {
+      background: #0d2238;
+      color: #58a6ff;
+      border-color: #58a6ff;
+    }
+
+    .toggle-btn:last-child.active {
+      border-left: 1px solid #58a6ff;
+    }
+
+    #insight-source {
+      font-size: 10px;
+      color: #444d56;
+      margin-left: 8px;
+    }
+
+    .band-row {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      font-size: 11px;
+      color: #8b949e;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+
+    #status {
+      text-align: center;
+      font-size: 11px;
+      color: #444d56;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>⬡ BTC / USDT Live Terminal</h1>
+
+<div id="spike-banner">⚠ MARKET SPIKE DETECTED — HIGH VOLATILITY</div>
+<div id="error-banner"></div>
+
+<div class="stats-row">
+
+  <div class="flip-card">
+    <div class="flip-card-inner">
+      <div class="flip-card-front">
+        <div class="label">Live Price</div>
+        <div class="value neutral" id="stat-price">—</div>
+      </div>
+      <div class="flip-card-back">
+        <div class="def-title">Live Price</div>
+        <div class="def-text">Current BTC/USDT market price fetched from Binance every 5 seconds.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flip-card">
+    <div class="flip-card-inner">
+      <div class="flip-card-front">
+        <div class="label">Change %</div>
+        <div class="value neutral" id="stat-change">—</div>
+      </div>
+      <div class="flip-card-back">
+        <div class="def-title">Price Change %</div>
+        <div class="def-text">% difference vs the previous data point. Positive = rose, negative = fell.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flip-card">
+    <div class="flip-card-inner">
+      <div class="flip-card-front">
+        <div class="label">Moving Avg</div>
+        <div class="value neutral" id="stat-ma">—</div>
+      </div>
+      <div class="flip-card-back">
+        <div class="def-title">Simple Moving Avg</div>
+        <div class="def-text">Mean of the last 5 prices. Smooths noise to reveal the underlying direction.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flip-card">
+    <div class="flip-card-inner">
+      <div class="flip-card-front">
+        <div class="label">EMA</div>
+        <div class="value neutral" id="stat-ema">—</div>
+      </div>
+      <div class="flip-card-back">
+        <div class="def-title">Exponential Moving Avg</div>
+        <div class="def-text">Like SMA but weights recent prices more. Reacts faster to sudden moves.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flip-card">
+    <div class="flip-card-inner">
+      <div class="flip-card-front">
+        <div class="label">Volatility</div>
+        <div class="value neutral" id="stat-vol">—</div>
+      </div>
+      <div class="flip-card-back">
+        <div class="def-title">Volatility (Std Dev)</div>
+        <div class="def-text">Std deviation of last 5 prices. High = turbulent market. Low = calm price.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flip-card">
+    <div class="flip-card-inner">
+      <div class="flip-card-front">
+        <div class="label">Trend</div>
+        <div id="trend-badge" class="badge-side">—</div>
+      </div>
+      <div class="flip-card-back">
+        <div class="def-title">Market Trend</div>
+        <div class="def-text">UPTREND = SMA rising. DOWNTREND = falling. SIDEWAYS = price consolidating.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- insight box with toggle -->
+<div id="insight-box">
+  <div class="insight-header">
+    <span class="insight-label">Insight</span>
+    <div class="toggle-wrap">
+      <button id="btn-rule" class="toggle-btn active" onclick="setInsightMode('rule')">RULE-BASED</button>
+      <button id="btn-ai"   class="toggle-btn"        onclick="setInsightMode('ai')">AI (GROQ)</button>
+    </div>
+  </div>
+  <span id="insight-text">Loading...</span>
+  <span id="insight-source"></span>
+</div>
+
+<div class="band-row">
+  <span><span class="dot" style="background:#58a6ff"></span>Price</span>
+  <span><span class="dot" style="background:#f0883e"></span>Moving Avg</span>
+  <span><span class="dot" style="background:#3fb950"></span>EMA</span>
+  <span><span class="dot" style="background:#555"></span>Upper Band</span>
+  <span><span class="dot" style="background:#555"></span>Lower Band</span>
+</div>
+
+<div class="chart-wrap">
+  <canvas id="priceChart" height="80"></canvas>
+</div>
+
+<div id="status">Connecting...</div>
+
+<script>
+let chart;
+let insightMode = 'rule';
+
+function initChart() {
+  const ctx = document.getElementById('priceChart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [
+        { label: 'Price',       data: [], borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.06)', fill: true,  tension: 0.3, pointRadius: 0 },
+        { label: 'Moving Avg', data: [], borderColor: '#f0883e', backgroundColor: 'transparent',            fill: false, tension: 0.3, borderDash: [4,3], pointRadius: 0 },
+        { label: 'EMA',        data: [], borderColor: '#3fb950', backgroundColor: 'transparent',            fill: false, tension: 0.3, borderDash: [2,2], pointRadius: 0 },
+        { label: 'Upper Band', data: [], borderColor: '#444',    backgroundColor: 'transparent',            fill: false, tension: 0.3, borderDash: [3,4], pointRadius: 0 },
+        { label: 'Lower Band', data: [], borderColor: '#444',    backgroundColor: 'transparent',            fill: false, tension: 0.3, borderDash: [3,4], pointRadius: 0 },
+      ]
+    },
+    options: {
+      responsive: true,
+      animation: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#444d56', maxTicksLimit: 8 }, grid: { color: '#161b22' } },
+        y: { beginAtZero: false, ticks: { color: '#444d56', callback: v => '$' + v.toLocaleString() }, grid: { color: '#161b22' } }
+      }
+    }
+  });
+}
+
+function fmt(v)  { return '$' + Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function ts(str) { if (!str) return ''; const d = new Date(str.replace(' ','T')); return isNaN(d) ? str : d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' }); }
+
+function pulse(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('emerged');
+  void el.offsetWidth;
+  el.classList.add('emerged');
+}
+
+function setTrend(trend) {
+  const el = document.getElementById('trend-badge');
+  if (trend === 'UPTREND')        { el.textContent = '▲ UPTREND';   el.className = 'badge-up';   }
+  else if (trend === 'DOWNTREND') { el.textContent = '▼ DOWNTREND'; el.className = 'badge-down'; }
+  else                            { el.textContent = '─ SIDEWAYS';  el.className = 'badge-side'; }
+}
+
+function showSpike() {
+  const b = document.getElementById('spike-banner');
+  b.style.display = 'block';
+  setTimeout(() => b.style.display = 'none', 6000);
+}
+
+function setInsightMode(mode) {
+  insightMode = mode;
+  document.getElementById('btn-rule').classList.toggle('active', mode === 'rule');
+  document.getElementById('btn-ai').classList.toggle('active',   mode === 'ai');
+  loadInsight();
+}
+
+async function loadInsight() {
+  const endpoint = insightMode === 'ai'
+    ? 'http://127.0.0.1:8000/ai_insight'
+    : 'http://127.0.0.1:8000/insight';
+  try {
+    const r    = await fetch(endpoint);
+    const data = await r.json();
+    document.getElementById('insight-text').textContent = data.insight || '—';
+    const src = document.getElementById('insight-source');
+    if (insightMode === 'ai' && data.source) {
+      src.textContent = data.source === 'groq' ? '⚡ groq / llama3' : '⚠ fell back to rule-based';
+    } else {
+      src.textContent = '';
+    }
+  } catch (_) {}
+}
+
+function applyRow(row) {
+  const price  = Number(row.price)        || 0;
+  const change = Number(row.price_change) || 0;
+  const ma     = Number(row.moving_avg)   || 0;
+  const ema    = Number(row.ema)          || 0;
+  const vol    = Number(row.volatility)   || 0;
+
+  document.getElementById('stat-price').textContent = fmt(price);
+  pulse('stat-price');
+
+  const changeEl = document.getElementById('stat-change');
+  const sign = change >= 0 ? '+' : '';
+  changeEl.textContent = sign + change.toFixed(4) + '%';
+  changeEl.className   = 'value ' + (change > 0 ? 'up' : change < 0 ? 'down' : 'neutral');
+  pulse('stat-change');
+
+  document.getElementById('stat-ma').textContent  = fmt(ma);   pulse('stat-ma');
+  document.getElementById('stat-ema').textContent = fmt(ema);  pulse('stat-ema');
+  document.getElementById('stat-vol').textContent = vol.toFixed(4); pulse('stat-vol');
+
+  setTrend(row.trend || 'SIDEWAYS');
+  if (row.is_spike) showSpike();
+}
+
+async function loadHistory() {
+  try {
+    const r    = await fetch('http://127.0.0.1:8000/history');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      document.getElementById('status').textContent = 'No data yet — run the pipeline first.';
+      return;
+    }
+    const last = data.slice(-40);
+    chart.data.labels            = last.map(d => ts(d.timestamp));
+    chart.data.datasets[0].data  = last.map(d => Number(d.price)       || 0);
+    chart.data.datasets[1].data  = last.map(d => Number(d.moving_avg)  || 0);
+    chart.data.datasets[2].data  = last.map(d => Number(d.ema)         || 0);
+    chart.data.datasets[3].data  = last.map(d => Number(d.upper_band)  || 0);
+    chart.data.datasets[4].data  = last.map(d => Number(d.lower_band)  || 0);
+    chart.update();
+    applyRow(last[last.length - 1]);
+    document.getElementById('error-banner').style.display = 'none';
+  } catch (e) {
+    document.getElementById('error-banner').style.display = 'block';
+    document.getElementById('error-banner').textContent   = '⚠ API unreachable: ' + e.message;
+  }
+}
+
+function connectWS() {
+  const ws = new WebSocket('ws://127.0.0.1:8000/ws');
+
+  ws.onopen = () => {
+    document.getElementById('status').textContent = 'Connected via WebSocket — live data streaming';
+  };
+
+  ws.onmessage = (event) => {
+    const row = JSON.parse(event.data);
+    chart.data.labels.push(ts(row.timestamp));
+    chart.data.datasets[0].data.push(Number(row.price)      || 0);
+    chart.data.datasets[1].data.push(Number(row.moving_avg) || 0);
+    chart.data.datasets[2].data.push(Number(row.ema)        || 0);
+    chart.data.datasets[3].data.push(Number(row.upper_band) || 0);
+    chart.data.datasets[4].data.push(Number(row.lower_band) || 0);
+    if (chart.data.labels.length > 40) {
+      chart.data.labels.shift();
+      chart.data.datasets.forEach(ds => ds.data.shift());
+    }
+    chart.update();
+    applyRow(row);
+    const now = new Date().toLocaleTimeString();
+    document.getElementById('status').textContent = `Live · Last update: ${now}`;
+  };
+
+  ws.onclose = () => {
+    document.getElementById('status').textContent = 'WebSocket closed — reconnecting in 5s...';
+    setTimeout(connectWS, 5000);
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+window.onload = () => {
+  initChart();
+  loadHistory();
+  loadInsight();
+  connectWS();
+  setInterval(loadInsight, 30000);
+};
+</script>
+</body>
+</html>
